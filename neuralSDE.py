@@ -135,7 +135,7 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
     model = model.to(model.device)
 
     target_prices = target_prices.to(model.device).float()
-    networks_SDE = [model.b_S, model.sigma_S, model.b_V, model.sigma_V]
+    networks_SDE = [model.sigma_S, model.b_V, model.sigma_V]
     parameters_SDE = [model.rho, model.V0]
 
     optimizer_SDE = optim.Adam(model.parameters(), lr=1e-3)
@@ -201,11 +201,11 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
     return best_model
 
 
-#if torch.cuda.is_available():
-#    device = torch.device('cuda')
-#else:
-#    device = 'cpu'
-device = 'cpu'
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = 'cpu'
+#device = 'cpu'
 model = NeuralSDE(device=device, n_S=1, n_V=1, S0=100, num_layers=2, layer_size=64, N_simulations=200000, N_steps=96, n_maturities=1, Time_horizon=2, rfr=0.05, dropout=0.1, use_batchnorm=False)
 print('Model initiated')
 train(model, target_prices=prices_train, options=options_train, batch_size=40000, epochs=1000, threshold=2e-5)
