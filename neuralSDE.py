@@ -36,7 +36,6 @@ class NeuralSDE(nn.Module):
         self.n_S = n_S
         self.n_V = n_V
         self.n_maturities = n_maturities
-        self.b_S = timegridNet(sizes + [n_S], n_maturities, activation, output_activation, dropout, use_batchnorm)
         self.sigma_S = timegridNet(sizes + [n_S], n_maturities, activation, output_activation, dropout, use_batchnorm)
         self.b_V = timegridNet(sizes + [n_V], n_maturities, activation, output_activation, dropout, use_batchnorm)
         self.sigma_V = timegridNet(sizes + [n_V], n_maturities, activation, output_activation, dropout, use_batchnorm)
@@ -99,6 +98,7 @@ class NeuralSDE(nn.Module):
         hedging = torch.zeros((n_S, self.N_steps + 1, batch_size), device=self.device)
         S[:, 0, :] = S0
         V[:, 0, :] = V0
+        r = torch.tensor(self.rfr, device=self.device)
 
         NN1 = torch.randn((self.N_steps, n_S, batch_size), device=self.device)
         NN2 = torch.randn((self.N_steps, n_V, batch_size), device=self.device)
@@ -113,7 +113,7 @@ class NeuralSDE(nn.Module):
             V_prev = V[:, i - 1, :]
             hedging_prev = hedging[:, i - 1, :]
             X = torch.cat([t_tensor, S_prev, V_prev], 0)
-            b_S = self.b_S(idx, X) / (1 + abs(self.b_S(idx, X.detach())) * torch.sqrt(dt))
+            b_S = S_prev * r / (1 + abs(S_prev.detach() * r) * torch.sqrt(dt))
             sigma_S = self.sigma_S(idx, X) / (1 + abs(self.sigma_S(idx, X.detach())) * torch.sqrt(dt))
             b_V = self.b_V(idx, X) / (1 + abs(self.b_V(idx, X.detach())) * torch.sqrt(dt))
             sigma_V = self.sigma_V(idx, X) / (1 + abs(self.sigma_V(idx, X.detach())) * torch.sqrt(dt))
