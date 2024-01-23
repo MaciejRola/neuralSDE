@@ -15,12 +15,13 @@ def data_from_csv(path):
     return options, prices
 
 
-options_train, prices_train = data_from_csv('Data/Options_train.csv')
-options_test, prices_test = data_from_csv('Data/Options_test.csv')
+#options_train, prices_train = data_from_csv('Data/Options_train.csv')
+#options_test, prices_test = data_from_csv('Data/Options_test.csv')
+options_results, prices_results = data_from_csv('Data/Options_results.csv')
 
 
 class NeuralSDE(nn.Module):
-    def __init__(self, device, n_S, n_V, S0, num_layers, layer_size, N_simulations, N_steps, n_maturities, Time_horizon, rfr, activation='relu', output_activation='id', dropout=0., use_batchnorm=True):
+    def __init__(self, device, n_S, n_V, S0, num_layers, layer_size, N_simulations, N_steps, n_maturities, Time_horizon, rfr, period_length, activation='relu', output_activation='id', dropout=0., use_batchnorm=True):
         super(NeuralSDE, self).__init__()
         sizes = [n_S + n_V + 1] + num_layers * [layer_size]
 
@@ -49,6 +50,7 @@ class NeuralSDE(nn.Module):
         self.Time_horizon = Time_horizon
         self.dt = Time_horizon / N_steps
         self.rfr = rfr
+        self.period_length = period_length
         self.activation = activation
         self.output_activation = output_activation
         self.device = device
@@ -108,7 +110,7 @@ class NeuralSDE(nn.Module):
         for i in range(1, self.N_steps + 1):
             t = torch.tensor((i - 1) * self.dt, device=self.device)
             t_tensor = t * ones
-            idx = 0
+            idx = (i - 1) // self.period_length
             S_prev = S[:, i - 1, :]
             V_prev = V[:, i - 1, :]
             hedging_prev = hedging[:, i - 1, :]
@@ -161,7 +163,7 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
 
                 loss = F.mse_loss(prices_mean, target_prices)
                 loss.backward()
-                nn.utils.clip_grad_norm_(parameters_SDE, 2)
+                #nn.utils.clip_grad_norm_(parameters_SDE, 5)
                 optimizer_SDE.step()
 
             else:
@@ -174,7 +176,7 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
                 loss_sample_var = prices_var.sum()
                 loss = loss_sample_var
                 loss.backward()
-                nn.utils.clip_grad_norm_(model.Hedging_Vanilla.parameters(), 2)
+                #nn.utils.clip_grad_norm_(model.Hedging_Vanilla.parameters(), 5)
                 optimizer_Hedging.step()
 
         with torch.no_grad():
@@ -186,27 +188,40 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
         MSE = loss_fn(prices_mean, target_prices)
         loss_val = torch.sqrt(MSE)
         print(loss_val)
-
-        # if loss_val < loss_val_best:
-        #     best_model = model
-        #     loss_val_best = loss_val
-        #     checkpoint = {
-        #         "state_dict": model.state_dict(),
-        #         "prices_mean": prices_mean,
-        #         "target": target_prices,
-        #     }
-        #     torch.save(checkpoint, "best_model.pth")
-        # if loss_val.item() < threshold:
-        #     break
+        if loss_val < loss_val_best:
+            best_model = model
+            loss_val_best = loss_val
+            checkpoint = {
+                "state_dict": model.state_dict(),
+                "prices_mean": prices_mean,
+                "target": target_prices,
+            }
+            torch.save(checkpoint, "best_model_no_bn.pth")
+        if loss_val.item() < threshold:
+            break
     return best_model
 
 
-if torch.cuda.is_available():
-    device = torch.device('cuda')
-    torch.cuda.empty_cache()
-else:
-    device = 'cpu'
-model = NeuralSDE(device=device, n_S=1, n_V=1, S0=100, num_layers=2, layer_size=64, N_simulations=200000, N_steps=96, n_maturities=1, Time_horizon=2, rfr=0.05, dropout=0.1, use_batchnorm=False)
+# if torch.cuda.is_available():
+#     device = torch.device('cuda')
+#     torch.cuda.empty_cache()
+# else:
+device = 'cpu'
+n_S = 1
+n_V = 1
+S0 = 100
+num_layers = 2
+layer_size = 64
+N_simulations = 200000
+N_steps = 96
+n_maturities = 4
+Time_horizon = 2
+rfr = 0.05
+dropout = 0.1
+use_batchnorm = False
+period_length = N_steps // n_maturities
+model = NeuralSDE(device=device, n_S=n_S, n_V=n_V, S0=S0, num_layers=num_layers, layer_size=layer_size, N_simulations=N_simulations, N_steps=N_steps, n_maturities=n_maturities,
+                  Time_horizon=Time_horizon, rfr=rfr, period_length=period_length, activation='relu', output_activation='id', dropout=dropout, use_batchnorm=use_batchnorm)
 print('Model initiated')
-train(model, target_prices=prices_train, options=options_train, batch_size=40000, epochs=1000, threshold=2e-5)
+train(model, target_prices=prices_results, options=options_results, batch_size=40000, epochs=1000, threshold=2e-5)
 print('Model trained')
