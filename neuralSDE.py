@@ -187,6 +187,8 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
 
         MSE = loss_fn(prices_mean, target_prices)
         loss_val = torch.sqrt(MSE)
+        if (batch + 1) % 100:
+            LOSSES.append(loss_val
         print(loss_val)
         if loss_val < loss_val_best:
             best_model = model
@@ -211,7 +213,7 @@ n_S = 1
 n_V = 1
 S0 = 100
 num_layers = 2
-layer_size = 64
+layer_size = 16
 N_simulations = 200000
 N_steps = 96
 n_maturities = 4
@@ -219,9 +221,11 @@ Time_horizon = 2
 rfr = 0.05
 dropout = 0.1
 use_batchnorm = False
+LOSSES = []
 period_length = N_steps // n_maturities
 model = NeuralSDE(device=device, n_S=n_S, n_V=n_V, S0=S0, num_layers=num_layers, layer_size=layer_size, N_simulations=N_simulations, N_steps=N_steps, n_maturities=n_maturities,
                   Time_horizon=Time_horizon, rfr=rfr, period_length=period_length, activation='relu', output_activation='id', dropout=dropout, use_batchnorm=use_batchnorm)
 print('Model initiated')
-train(model, target_prices=prices_results, options=options_results, batch_size=40000, epochs=1000, threshold=2e-5)
+train(model, target_prices=prices_results, options=options_results, batch_size=1000, epochs=100, threshold=2e-5)
 print('Model trained')
+np.savetxt(np.array(LOSSES), 'RMSE.csv')
