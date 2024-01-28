@@ -1,10 +1,10 @@
 import torch.nn as nn
-import torch.nn.functional as F
 from BaseNet import timegridNet
 import torch.optim as optim
 import torch
 import pandas as pd
 from MC import VanillaOption
+from torchinfo import summary
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -17,14 +17,14 @@ def data_from_csv(path):
 
 #options_train, prices_train = data_from_csv('Data/Options_train.csv')
 #options_test, prices_test = data_from_csv('Data/Options_test.csv')
-options_results, prices_results = data_from_csv('Data/Options_results.csv')
+options = pd.read_csv('Data/Options_results.csv')
 
 
 class NeuralSDE(nn.Module):
-    def __init__(self, device, n_S, n_V, S0, num_layers, layer_size, N_simulations, N_steps, n_maturities, Time_horizon, rfr, period_length, activation='relu', output_activation='id', dropout=0., use_batchnorm=True):
+    def __init__(self, device, S0, num_layers, num_layers_hedging, layer_size, layer_size_hedging, N_simulations, N_steps, n_maturities, n_strikes, Time_horizon, rfr, period_length, n_S=1, n_V=1, activation='relu', output_activation='id', dropout=0., use_batchnorm=True):
         super(NeuralSDE, self).__init__()
         sizes = [n_S + n_V + 1] + num_layers * [layer_size]
-
+        sizes_hedging = [n_S + 1] + num_layers_hedging * [layer_size_hedging]
         if activation == 'relu':
             activation = nn.ReLU()
         elif activation == 'softmax':
@@ -34,22 +34,25 @@ class NeuralSDE(nn.Module):
             output_activation = nn.Identity()
         elif output_activation == 'tanh':
             output_activation = nn.Tanh()
+
         self.n_S = n_S
         self.n_V = n_V
         self.n_maturities = n_maturities
+        self.n_strikes = n_strikes
+        self.maturities_idx = [(i + 1) * period_length for i in range(n_maturities)]
         self.sigma_S = timegridNet(sizes + [n_S], n_maturities, activation, output_activation, dropout, use_batchnorm)
         self.b_V = timegridNet(sizes + [n_V], n_maturities, activation, output_activation, dropout, use_batchnorm)
         self.sigma_V = timegridNet(sizes + [n_V], n_maturities, activation, output_activation, dropout, use_batchnorm)
-        self.Hedging_Vanilla = timegridNet(sizes + [n_S], n_maturities, activation, output_activation, dropout, use_batchnorm)
+        self.Hedging_Vanilla = timegridNet(sizes_hedging + [n_S * n_maturities * n_strikes], n_maturities, activation, output_activation, dropout, use_batchnorm)
         self.Hedging_Exotics = None
-        self.rho = nn.Parameter(2 * torch.rand(1) - 1)
-        self.S0 = S0
-        self.V0 = nn.Parameter(torch.rand(1) - 3)
+        self.rho = nn.Parameter(torch.tanh((2 * torch.rand(1) - 1)))
+        self.S0 = torch.tensor(S0)
+        self.V0 = nn.Parameter(torch.sigmoid(torch.tensor(torch.rand(1) - 3))*0.5)
         self.N_simulations = N_simulations
         self.N_steps = N_steps
         self.Time_horizon = Time_horizon
-        self.dt = Time_horizon / N_steps
-        self.rfr = rfr
+        self.dt = torch.tensor(Time_horizon / N_steps)
+        self.rfr = torch.tensor(rfr)
         self.period_length = period_length
         self.activation = activation
         self.output_activation = output_activation
@@ -57,86 +60,76 @@ class NeuralSDE(nn.Module):
         self.dropout = dropout
         self.use_batchnorm = use_batchnorm
 
-    def discounted_option_prices(self, S, hedging, options, batch_size):
-        for option in options:
-            option.timesteps_to_maturity(self.N_steps, self.Time_horizon)
-        discounting = torch.exp(-self.rfr * torch.tensor([self.dt * i for i in range(self.N_steps + 1)])).reshape(1, -1, 1).repeat(self.n_S, 1, batch_size)
-        discounting = discounting.to(self.device)
-        price = torch.zeros((len(options), batch_size))
-        hedge = torch.zeros((len(options), batch_size))
-        price_mean = torch.zeros((len(options)))
-        price_variance = torch.zeros((len(options)))
-        for i, option in enumerate(options):
-            maturity_idx = option.N_steps_T
-            if isinstance(option, VanillaOption):
-                if option.call_or_put == 'Call':
-                    price[i] = discounting[:, maturity_idx, :] * torch.clamp(S[:, maturity_idx, :] - option.K, 0)
-                else:
-                    price[i] = discounting[:, maturity_idx, :] * torch.clamp(option.K - S[:, maturity_idx, :], 0)
-                hedge[i] = hedging[:, maturity_idx, :]
-                price_mean[i] = (price[i] - hedge[i]).mean()
-                price_variance[i] = (price[i] - hedge[i]).var()
-            else:
-                if option.is_path_dependent:
-                    price[i] = discounting[maturity_idx] * option.payoff(S)
-                    hedge[i] = hedging[:, maturity_idx, :]
-                else:
-                    price[i] = discounting[maturity_idx] * option.payoff(S[:, maturity_idx, :])
-                    hedge[i] = hedging[:, maturity_idx, :]
-        return price_mean.float(), price_variance.float()
-
-    def tamedEulerScheme(self, batch_size=None):  # torch version
+    def forward(self, options, batch_size=None):  # torch version
+        maturities = (options['Expiration_date'].unique() * self.N_steps / self.Time_horizon).astype(int).tolist()
+        maturities_dict = dict(zip(maturities, range(self.n_maturities)))
+        strikes = torch.tensor(options['Strike'].unique(), device=self.device, dtype=torch.float).reshape(-1, 1)
         if not batch_size:
             batch_size = self.N_simulations
-        S0 = torch.tensor(self.S0, device=self.device)
-        V0 = (F.sigmoid(torch.tensor(self.V0, device=self.device)) * 0.5)
-        rho = F.tanh(self.rho)
-        dt = torch.tensor(self.Time_horizon / self.N_steps, device=self.device)
-        n_S = self.n_S
-        n_V = self.n_V
-        ones = torch.ones((1, batch_size), device=self.device)
-        S = torch.zeros((n_S, self.N_steps + 1, batch_size), device=self.device)
-        V = torch.zeros((n_V, self.N_steps + 1, batch_size), device=self.device)
-        hedging = torch.zeros((n_S, self.N_steps + 1, batch_size), device=self.device)
-        S[:, 0, :] = S0
-        V[:, 0, :] = V0
-        r = torch.tensor(self.rfr, device=self.device)
+        S0 = self.S0
+        V0 = self.V0
+        rho = self.rho
+        dt = self.dt
+        n_maturities = self.n_maturities
+        n_strikes = self.n_strikes
 
-        NN1 = torch.randn((self.N_steps, n_S, batch_size), device=self.device)
-        NN2 = torch.randn((self.N_steps, n_V, batch_size), device=self.device)
-        dW = torch.sqrt(dt) * NN2
-        dB = rho * dW + torch.sqrt(1 - rho ** 2) * torch.sqrt(dt) * NN1
+        assert n_maturities * n_strikes == len(options)
 
+        ones = torch.ones((1, 1, batch_size))
+        prices = torch.zeros(n_strikes, n_maturities, device=self.device, requires_grad=True)
+        variance = torch.zeros(n_strikes, n_maturities, device=self.device, requires_grad=True)
+        S_path = torch.zeros(self.n_S, self.N_steps + 1, batch_size, requires_grad=False)
+        hedging = torch.zeros(n_strikes, n_maturities, batch_size, device=self.device)
+        S_path[:, 0, :] = S0.detach()
+        r = self.rfr
+        df = torch.exp(-r * dt)
+        S_prev = S0.to(self.device).repeat(1, 1, batch_size)
+        V_prev = V0.to(self.device).repeat(1, 1, batch_size)
         for i in range(1, self.N_steps + 1):
-            t = torch.tensor((i - 1) * self.dt, device=self.device)
-            t_tensor = t * ones
+            t_tensor = ((i - 1) * dt * ones).to(self.device)
             idx = (i - 1) // self.period_length
-            S_prev = S[:, i - 1, :]
-            V_prev = V[:, i - 1, :]
-            hedging_prev = hedging[:, i - 1, :]
             X = torch.cat([t_tensor, S_prev, V_prev], 0)
+
             b_S = S_prev * r / (1 + abs(S_prev.detach() * r) * torch.sqrt(dt))
             sigma_S = self.sigma_S(idx, X) / (1 + abs(self.sigma_S(idx, X.detach())) * torch.sqrt(dt))
             b_V = self.b_V(idx, X) / (1 + abs(self.b_V(idx, X.detach())) * torch.sqrt(dt))
             sigma_V = self.sigma_V(idx, X) / (1 + abs(self.sigma_V(idx, X.detach())) * torch.sqrt(dt))
-            S[:, i, :] = S_prev + b_S * dt + sigma_S * dB[i - 1, :, :]
-            V[:, i, :] = torch.clamp(V_prev + b_V * dt + sigma_V * dW[i - 1, :, :], 0)
-            hedging[:, i, :] = hedging_prev + torch.exp(-self.rfr * t) * S_prev.detach() * sigma_S.detach() * self.Hedging_Vanilla(idx, torch.cat([t_tensor, S_prev.detach(), V_prev.detach()], 0))
-        return S, V, hedging
 
-    def forward(self, options, batch_size=None):
-        if not batch_size:
-            batch_size = self.N_simulations
-        S, V, hedging = self.tamedEulerScheme(batch_size)
-        prices = self.discounted_option_prices(S, hedging, options, batch_size)
-        return prices
+            NN1 = torch.randn(batch_size, device=self.device, requires_grad=False)
+            NN2 = torch.randn(batch_size, device=self.device, requires_grad=False)
+            dW = torch.sqrt(dt) * NN2
+            dB = rho * dW + torch.sqrt(1 - rho ** 2) * torch.sqrt(dt) * NN1
+
+            S_curr = S_prev + b_S * dt + sigma_S * dB
+            V_curr = torch.clamp(V_prev + b_V * dt + sigma_V * dW, 0)
+            hedge = self.Hedging_Vanilla(idx, torch.cat([t_tensor, S_prev.detach()], 0)).reshape(n_strikes, n_maturities, -1)
+            hedging += df * S_prev.detach() * sigma_S.detach() * hedge * dW
+
+            S_path[:, i, :] = S_curr.detach()
+
+            S_prev = S_curr
+            V_prev = V_curr
+
+            if i in maturities:
+                table_index = maturities_dict[i]
+                discount = df ** i
+                simulated_prices = discount * torch.clamp(S_curr - strikes, 0) - hedging[:, table_index]
+                price = torch.zeros_like(prices)
+                var = torch.zeros_like(prices)
+                for j, strike in enumerate(strikes):
+                    price[j, table_index] = simulated_prices[0, j].mean()
+                    var[j, table_index] = simulated_prices[0, j].var()
+                prices = prices + price
+                variance = variance + var
+
+        return prices, variance
 
 
-def train(model, target_prices, options, batch_size, epochs, threshold):
+def train(model, options, batch_size, epochs, threshold):
     loss_fn = nn.MSELoss()
     model = model.to(model.device)
+    target_prices = torch.tensor(pd.pivot_table(options, values='Price', index='Strike', columns='Expiration_date').to_numpy(), requires_grad=True, device=model.device, dtype=torch.float)
 
-    target_prices = target_prices.to(model.device).float()
     networks_SDE = [model.sigma_S, model.b_V, model.sigma_V]
     parameters_SDE = [model.rho, model.V0]
 
@@ -147,32 +140,30 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
     best_model = None
     for epoch in range(epochs):
         optim_SDE = (epoch % 2 == 0)
-
-        for batch in range(0, 20 * batch_size, batch_size):
+        if optim_SDE:
+            for net in networks_SDE:
+                net.unfreeze()
+            for param in parameters_SDE:
+                param.requires_grad_(True)
+            model.Hedging_Vanilla.freeze()
+        else:
+            for net in networks_SDE:
+                net.freeze()
+            for param in parameters_SDE:
+                param.requires_grad_(False)
+            model.Hedging_Vanilla.unfreeze()
+        for batch in range(0, model.N_simulations, batch_size):
             optimizer_SDE.zero_grad()
             optimizer_Hedging.zero_grad()
-            prices_mean, prices_var = model(options, batch_size)
-            prices_mean = prices_mean.to(model.device)
+            prices, prices_var = model(options, batch_size)
+            prices = prices.to(model.device)
             prices_var = prices_var.to(model.device)
             if optim_SDE:
-                for net in networks_SDE:
-                    net.unfreeze()
-                for param in parameters_SDE:
-                    param.requires_grad_(True)
-                model.Hedging_Vanilla.freeze()
-
-                loss = F.mse_loss(prices_mean, target_prices)
+                loss = loss_fn(prices, target_prices)
                 loss.backward()
                 #nn.utils.clip_grad_norm_(parameters_SDE, 5)
                 optimizer_SDE.step()
-
             else:
-                for net in networks_SDE:
-                    net.freeze()
-                for param in parameters_SDE:
-                    param.requires_grad_(True)
-                model.Hedging_Vanilla.unfreeze()
-
                 loss_sample_var = prices_var.sum()
                 loss = loss_sample_var
                 loss.backward()
@@ -187,8 +178,6 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
 
         MSE = loss_fn(prices_mean, target_prices)
         loss_val = torch.sqrt(MSE)
-        if (batch + 1) % 100:
-            LOSSES.append(loss_val
         print(loss_val)
         if loss_val < loss_val_best:
             best_model = model
@@ -204,28 +193,31 @@ def train(model, target_prices, options, batch_size, epochs, threshold):
     return best_model
 
 
-# if torch.cuda.is_available():
-#     device = torch.device('cuda')
-#     torch.cuda.empty_cache()
-# else:
-device = 'cpu'
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+    torch.cuda.empty_cache()
+else:
+    device = 'cpu'
 n_S = 1
 n_V = 1
 S0 = 100
-num_layers = 2
-layer_size = 16
+num_layers = 3
+num_layers_hedging = 4
+layer_size = 32
+layer_size_hedging = 64
 N_simulations = 200000
 N_steps = 96
 n_maturities = 4
+n_strikes = 201
 Time_horizon = 2
 rfr = 0.05
-dropout = 0.1
+dropout = 0.0
 use_batchnorm = False
-LOSSES = []
 period_length = N_steps // n_maturities
-model = NeuralSDE(device=device, n_S=n_S, n_V=n_V, S0=S0, num_layers=num_layers, layer_size=layer_size, N_simulations=N_simulations, N_steps=N_steps, n_maturities=n_maturities,
-                  Time_horizon=Time_horizon, rfr=rfr, period_length=period_length, activation='relu', output_activation='id', dropout=dropout, use_batchnorm=use_batchnorm)
+model = NeuralSDE(device=device, S0=S0, num_layers=num_layers, num_layers_hedging=num_layers_hedging, layer_size=layer_size, layer_size_hedging=layer_size_hedging,
+                  N_simulations=N_simulations, N_steps=N_steps, n_maturities=n_maturities, n_strikes=n_strikes, Time_horizon=Time_horizon, rfr=rfr, period_length=period_length,
+                  activation='relu', output_activation='id', dropout=dropout, use_batchnorm=use_batchnorm)
+print(summary(model))
 print('Model initiated')
-train(model, target_prices=prices_results, options=options_results, batch_size=1000, epochs=100, threshold=2e-5)
+train(model, options=options, batch_size=40000, epochs=1000, threshold=2e-5)
 print('Model trained')
-np.savetxt(np.array(LOSSES), 'RMSE.csv')
