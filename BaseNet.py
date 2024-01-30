@@ -6,7 +6,7 @@ class singlePeriodNet(nn.Module):
         super(singlePeriodNet, self).__init__()
         self.linears = nn.ModuleList([nn.Linear(x, y) for x, y in zip(sizes[:-1], sizes[1:])])
         if use_batchnorm:
-            self.batchnorms = nn.ModuleList([nn.BatchNorm1d(x) for x in sizes[1:]])
+            self.batchnorm = nn.BatchNorm1d(sizes[-2])
         for layer in self.linears:
             nn.init.xavier_normal_(layer.weight.data)
         self.activation = activation
@@ -17,17 +17,12 @@ class singlePeriodNet(nn.Module):
 
     def forward(self, x):
         x = x.T
+        for layer in self.linears[:-1]:
+            x = layer(x)
+            x = self.activation(x)
+            x = nn.Dropout(self.dropout)(x)
         if self.use_batchnorm:
-            for layer, batchnorm in zip(self.linears[:-1], self.batchnorms):
-                x = layer(x)
-                x = self.activation(x)
-                x = batchnorm(x)
-                x = nn.Dropout(self.dropout)(x)
-        else:
-            for layer in self.linears[:-1]:
-                x = layer(x)
-                x = self.activation(x)
-                x = nn.Dropout(self.dropout)(x)
+            x = self.batchnorm(x)
         x = self.linears[-1](x)
         if self.output_activation:
             x = self.output_activation(x)

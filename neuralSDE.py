@@ -5,6 +5,7 @@ import torch
 import pandas as pd
 from MC import VanillaOption
 from torchinfo import summary
+import matplotlib.pyplot as plt
 torch.autograd.set_detect_anomaly(True)
 
 
@@ -35,8 +36,8 @@ class NeuralSDE(nn.Module):
         elif output_activation == 'tanh':
             output_activation = nn.Tanh()
 
-        self.n_S = n_S
-        self.n_V = n_V
+        n_S = 1
+        n_V = 1
         self.n_maturities = n_maturities
         self.n_strikes = n_strikes
         self.maturities_idx = [(i + 1) * period_length for i in range(n_maturities)]
@@ -47,7 +48,7 @@ class NeuralSDE(nn.Module):
         self.Hedging_Exotics = None
         self.rho = nn.Parameter(torch.tanh((2 * torch.rand(1) - 1)))
         self.S0 = torch.tensor(S0)
-        self.V0 = nn.Parameter(torch.sigmoid(torch.tensor(torch.rand(1) - 3))*0.5)
+        self.V0 = nn.Parameter(torch.sigmoid(torch.rand(1) - 3)*0.5)
         self.N_simulations = N_simulations
         self.N_steps = N_steps
         self.Time_horizon = Time_horizon
@@ -75,20 +76,23 @@ class NeuralSDE(nn.Module):
 
         assert n_maturities * n_strikes == len(options)
 
-        ones = torch.ones((1, 1, batch_size))
         prices = torch.zeros(n_strikes, n_maturities, device=self.device, requires_grad=True)
         variance = torch.zeros(n_strikes, n_maturities, device=self.device, requires_grad=True)
-        S_path = torch.zeros(self.n_S, self.N_steps + 1, batch_size, requires_grad=False)
+        S_path = torch.zeros(self.N_steps + 1, batch_size, requires_grad=False)
         hedging = torch.zeros(n_strikes, n_maturities, batch_size, device=self.device)
-        S_path[:, 0, :] = S0.detach()
+        S_path[0, :] = S0.detach()
         r = self.rfr
         df = torch.exp(-r * dt)
-        S_prev = S0.to(self.device).repeat(1, 1, batch_size)
-        V_prev = V0.to(self.device).repeat(1, 1, batch_size)
+        S_prev = S0.to(self.device).repeat(1, batch_size)
+        V_prev = V0.to(self.device).repeat(1, batch_size)
         for i in range(1, self.N_steps + 1):
-            t_tensor = ((i - 1) * dt * ones).to(self.device)
+            t = (i - 1) * dt.repeat(1, batch_size).to(self.device)
+            S_prev = S_prev.to(self.device)
+            V_prev = V_prev.to(self.device)
+
             idx = (i - 1) // self.period_length
-            X = torch.cat([t_tensor, S_prev, V_prev], 0)
+
+            X = torch.cat([t, S_prev, V_prev], 0)
 
             b_S = S_prev * r / (1 + abs(S_prev.detach() * r) * torch.sqrt(dt))
             sigma_S = self.sigma_S(idx, X) / (1 + abs(self.sigma_S(idx, X.detach())) * torch.sqrt(dt))
@@ -102,10 +106,10 @@ class NeuralSDE(nn.Module):
 
             S_curr = S_prev + b_S * dt + sigma_S * dB
             V_curr = torch.clamp(V_prev + b_V * dt + sigma_V * dW, 0)
-            hedge = self.Hedging_Vanilla(idx, torch.cat([t_tensor, S_prev.detach()], 0)).reshape(n_strikes, n_maturities, -1)
+            hedge = self.Hedging_Vanilla(idx, torch.cat([t, S_prev.detach()], 0)).reshape(n_strikes, n_maturities, -1)
             hedging += df * S_prev.detach() * sigma_S.detach() * hedge * dW
 
-            S_path[:, i, :] = S_curr.detach()
+            S_path[i, :] = S_curr.detach()
 
             S_prev = S_curr
             V_prev = V_curr
@@ -117,8 +121,8 @@ class NeuralSDE(nn.Module):
                 price = torch.zeros_like(prices)
                 var = torch.zeros_like(prices)
                 for j, strike in enumerate(strikes):
-                    price[j, table_index] = simulated_prices[0, j].mean()
-                    var[j, table_index] = simulated_prices[0, j].var()
+                    price[j, table_index] = simulated_prices[j].mean()
+                    var[j, table_index] = simulated_prices[j].var()
                 prices = prices + price
                 variance = variance + var
 
@@ -179,6 +183,10 @@ def train(model, options, batch_size, epochs, threshold):
         MSE = loss_fn(prices_mean, target_prices)
         loss_val = torch.sqrt(MSE)
         print(loss_val)
+        LOSSES.append(loss_val.item())
+        if len(LOSSES) > 1:
+            plt.plot(LOSSES)
+            plt.savefig('losses.png')
         if loss_val < loss_val_best:
             best_model = model
             loss_val_best = loss_val
@@ -213,12 +221,13 @@ n_strikes = 201
 Time_horizon = 2
 rfr = 0.05
 dropout = 0.0
-use_batchnorm = False
+use_batchnorm = True
+LOSSES = []
 period_length = N_steps // n_maturities
 model = NeuralSDE(device=device, S0=S0, num_layers=num_layers, num_layers_hedging=num_layers_hedging, layer_size=layer_size, layer_size_hedging=layer_size_hedging,
                   N_simulations=N_simulations, N_steps=N_steps, n_maturities=n_maturities, n_strikes=n_strikes, Time_horizon=Time_horizon, rfr=rfr, period_length=period_length,
                   activation='relu', output_activation='id', dropout=dropout, use_batchnorm=use_batchnorm)
-print(summary(model))
+summary(model)
 print('Model initiated')
 train(model, options=options, batch_size=40000, epochs=1000, threshold=2e-5)
 print('Model trained')
