@@ -161,13 +161,13 @@ def train(model, options, batch_size, epochs, threshold):
             if optim_SDE:
                 loss = loss_fn(prices, target_prices)
                 loss.backward()
-                #nn.utils.clip_grad_norm_(parameters_SDE, 5)
+                nn.utils.clip_grad_norm_(parameters_SDE, 5)
                 optimizer_SDE.step()
             else:
                 loss_sample_var = prices_var.sum()
                 loss = loss_sample_var
                 loss.backward()
-                #nn.utils.clip_grad_norm_(model.Hedging_Vanilla.parameters(), 5)
+                nn.utils.clip_grad_norm_(model.Hedging_Vanilla.parameters(), 5)
                 optimizer_Hedging.step()
 
         with torch.no_grad():
@@ -198,6 +198,7 @@ if torch.cuda.is_available():
     torch.cuda.empty_cache()
 else:
     device = 'cpu'
+print(f'Using {device}')
 n_S = 1
 n_V = 1
 S0 = 100
