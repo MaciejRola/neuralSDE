@@ -67,10 +67,10 @@ class NeuralLV(nn.Module):
             if self.use_hedging:
                 hedging = torch.zeros(n_strikes, n_maturities, self.test_normal_variables.shape[0], device=self.device)
         else:
-            S_prev = S0.repeat(1, batch_size)
-            ones = torch.ones(1, batch_size)
+            S_prev = S0.repeat(1, self.batch_size)
+            ones = torch.ones(1, self.batch_size)
             if self.use_hedging:
-                hedging = torch.zeros(n_strikes, n_maturities, batch_size, device=self.device)
+                hedging = torch.zeros(n_strikes, n_maturities, self.batch_size, device=self.device)
 
         for i in range(1, self.N_steps + 1):
             idx = (i - 1) // self.period_length
@@ -125,9 +125,13 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
     loss_val_best = 10
     best_model = None
     itercount = 0
+    LOSSES = []
+    if model.use_hedging:
+        VARIANCES = []
     for epoch in range(epochs):
         if model.use_hedging:
             optim_SDE = (epoch % 2 == 0)
+            print(f'SDE parameters optimization: {optim_SDE}')
             if optim_SDE:
                 for net in networks_SDE:
                     net.unfreeze()
@@ -143,7 +147,6 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
             for batch in range(0, 20 * batch_size, batch_size):
                 optimizer_SDE.zero_grad()
                 optimizer_Hedging.zero_grad()
-
                 init_time = time.time()
                 prices, prices_var = model(maturities, strikes, test=False)
                 time_forward = time.time() - init_time
@@ -155,7 +158,6 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
                     loss.backward()
                     nn.utils.clip_grad_norm_(parameters_SDE, 5)
                     time_backward = time.time() - init_time
-                    print(f'iteration {itercount}, loss={loss.item()}, time_forward={time_forward}, time_backward={time_backward}')
                     optimizer_SDE.step()
                 else:
                     loss_sample_var = prices_var.sum()
@@ -164,9 +166,8 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
                     loss.backward()
                     nn.utils.clip_grad_norm_(model.Hedging_Vanilla.parameters(), 1)
                     time_backward = time.time() - init_time
-                    print(f'iteration {itercount}, loss={loss.item()}, time_forward={time_forward}, time_backward={time_backward}')
                     optimizer_Hedging.step()
-            scheduler_SDE.step()
+                print(f'iteration: {itercount}, loss: {loss.item()}, time_forward={time_forward}, time_backward={time_backward}')
         else:
             for batch in range(0, 20 * batch_size, batch_size):
                 optimizer_SDE.zero_grad()
@@ -179,10 +180,9 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
                 loss.backward()
                 nn.utils.clip_grad_norm_(parameters_SDE, 5)
                 time_backward = time.time() - init_time
-                if torch.isnan(loss).item():
-                    print('loss is nan')
-                print(f'iteration {itercount}, loss={loss.item()}, time_forward={time_forward}, time_backward={time_backward}')
                 optimizer_SDE.step()
+                print(f'iteration: {itercount}, loss: {loss.item()}, time_forward={time_forward}, time_backward={time_backward}')
+        scheduler_SDE.step()
 
         with torch.no_grad():
             prices_mean, prices_var = model(maturities, strikes, test=True)
@@ -191,7 +191,7 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
         MSE = loss_fn(prices_mean, target)
         loss_val = torch.sqrt(MSE)
         print(f'epoch={epoch}, loss={loss_val.item()}')
-        with open("log_eval_LV.txt", "w") as f:
+        with open("Results/log_eval_LV.txt", "w") as f:
             f.write(f'{epoch},{loss_val.item()}\n')
 
         LOSSES.append(loss_val.item())
@@ -203,20 +203,20 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
                 axs[0].legend()
                 axs[1].plot(VARIANCES, label='Mean price Variance')
                 axs[1].legend()
-                plt.savefig('loss_and_var_neuralLV.png')
+                plt.savefig('Results/loss_and_var_neuralLV.png')
                 plt.close()
         else:
             if len(LOSSES) > 1:
                 plt.plot(LOSSES, label='RMSE Error')
                 plt.legend()
-                plt.savefig('loss_neuralLV.png')
+                plt.savefig('Results/loss_neuralLV.png')
                 plt.close()
 
         if loss_val < loss_val_best:
             model_best = model
             loss_val_best = loss_val
-            print('loss_val_best', loss_val_best)
-            filename = 'neuralLV.pth.tar'
+            print(f'loss_val_best: {loss_val_best.item()}')
+            filename = 'Results/neuralLV.pth.tar'
             checkpoint = {'state_dict': model.state_dict(), 'pred': prices_mean, 'target': target}
             torch.save(checkpoint, filename)
 
@@ -271,11 +271,7 @@ if __name__ == '__main__':
     # We will use antithetic Brownian paths for testing
     test_normal_variables = torch.cat([test_normal_variables, -test_normal_variables], 0)
 
-    LOSSES = []
-    if use_hedging:
-        VARIANCES = []
-
-    with open("log_eval_LV.txt", "w") as f:
+    with open("Results/log_eval_LV.txt", "w") as f:
         f.write('epoch,loss\n')
 
     model = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
