@@ -96,8 +96,8 @@ class NeuralSDE(nn.Module):
                 NN1 = self.test_normal_variables[0, :, i - 1].to(self.device)
                 NN2 = self.test_normal_variables[1, :, i - 1].to(self.device)
             else:
-                NN1 = torch.randn(batch_size, device=self.device, requires_grad=False)
-                NN2 = torch.randn(batch_size, device=self.device, requires_grad=False)
+                NN1 = torch.randn(self.batch_size, device=self.device, requires_grad=False)
+                NN2 = torch.randn(self.batch_size, device=self.device, requires_grad=False)
             dW = torch.sqrt(dt) * NN2
             dB = rho * dW + torch.sqrt(1 - rho ** 2) * torch.sqrt(dt) * NN1
 

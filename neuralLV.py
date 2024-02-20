@@ -191,7 +191,7 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
         MSE = loss_fn(prices_mean, target)
         loss_val = torch.sqrt(MSE)
         print(f'epoch={epoch}, loss={loss_val.item()}')
-        with open("Results/log_eval_LV.txt", "w") as f:
+        with open("Results/log_eval_LV.txt", "a") as f:
             f.write(f'{epoch},{loss_val.item()}\n')
 
         LOSSES.append(loss_val.item())

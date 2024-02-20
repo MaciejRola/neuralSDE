@@ -50,11 +50,7 @@ test_normal_variables = torch.randn(2, MC_samples_test, N_steps, requires_grad=F
 # We will use antithetic Brownian paths for testing
 test_normal_variables = torch.cat([test_normal_variables, -test_normal_variables], 1)
 
-LOSSES = []
-if use_hedging:
-    VARIANCES = []
-
-with open("log_eval_LV.txt", "w") as f:
+with open("Results/log_eval_LV.txt", "w") as f:
     f.write('Initialisation\n')
 
 modelLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
@@ -68,7 +64,7 @@ trainLV(modelLV, maturities=maturities, strikes=strikes, target=target, batch_si
 print('Neural Local Volatility Model trained')
 torch.cuda.empty_cache()
 
-with open("log_eval_LSV.txt", "w") as f:
+with open("Results/log_eval_LSV.txt", "w") as f:
     f.write('Initialisation\n')
 
 modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
@@ -82,7 +78,7 @@ trainLSV(modelLSV, maturities=maturities, strikes=strikes, target=target, batch_
 print('Neural Local Stochastic Volatility Model trained')
 torch.cuda.empty_cache()
 
-with open("log_eval_SDE.txt", "w") as f:
+with open("Results/log_eval_SDE.txt", "w") as f:
     f.write('Initialisation\n')
 
 modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
