@@ -79,7 +79,7 @@ class NeuralLV(nn.Module):
 
             leverage = self.leverage(idx, X)
             drift = S_prev * r / (1 + abs(S_prev.detach() * r) * torch.sqrt(dt))
-            diffusion = leverage / (1 + abs(leverage.detach()) * torch.sqrt(dt))
+            diffusion = S_prev * leverage / (1 + abs(S_prev.detach() * leverage.detach()) * torch.sqrt(dt))
 
             if test:
                 NN = self.test_normal_variables[:, i - 1].to(self.device)
