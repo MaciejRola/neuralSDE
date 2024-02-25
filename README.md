@@ -1,6 +1,4 @@
 # neuralSDE
-Code of numerical experiments in Master's thesis: [TBD]
-
 ## Target data
 In both approaches target data is produced by Monte Carlo simulations under SABR model 
 
