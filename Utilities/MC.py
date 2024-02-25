@@ -96,9 +96,10 @@ class SABR_MC():
         return sigma + self.vol_sigma(sigma) * dW + 1 / 2 * self.vol_sigma_prime(sigma) * self.vol_sigma(sigma) * (dW ** 2 - self.dt)
 
     def simulate(self, options):
-        """Simulate the SABR model."""
+        """Simulate option prices under the SABR model."""
         b = 2. - ((1. - 2. * self.beta - (1. - self.beta) * (self.rho ** 2)) / ((1. - self.beta) * (1. - self.rho ** 2)))
-        for m in range(self.N_simulations + 1):
+        price_trajectories = np.zeros((self.N_simulations, self.N_steps + 1))
+        for m in range(self.N_simulations):
             F = np.zeros(self.N_steps + 1)
             sigma = np.zeros(self.N_steps + 1)
             F[0] = self.F_0
@@ -122,6 +123,7 @@ class SABR_MC():
                     continue
 
                 F[n] = self.EulerMaruyamaStep(F[n - 1], sigma[n - 1], dW_F[n - 1])
+            price_trajectories[m, :] = F
             for option in options:
                 option.N_steps_T = int(option.T / self.Time_horizon * self.N_steps)
                 df = np.exp(-self.r * option.T)
@@ -130,9 +132,42 @@ class SABR_MC():
                 payoff = option.payoff(S)
                 price = payoff * df
                 option.price.append(price)
+        np.savetxt('Data/price_trajectories.npy', price_trajectories, delimiter=',')
         for option in options:
             option.price = np.mean(option.price)
         return options
+
+    def simulate_paths(self):
+        """Simulate the SABR model."""
+        b = 2. - ((1. - 2. * self.beta - (1. - self.beta) * (self.rho ** 2)) / ((1. - self.beta) * (1. - self.rho ** 2)))
+        price_trajectories = np.zeros((self.N_simulations, self.N_steps + 1))
+        for m in range(self.N_simulations):
+            F = np.zeros(self.N_steps + 1)
+            sigma = np.zeros(self.N_steps + 1)
+            F[0] = self.F_0
+            sigma[0] = self.sigma_0
+            NN = np.random.randn(2, self.N_steps)
+            dW = np.sqrt(self.dt) * NN[0, :]
+            dB = np.sqrt(self.dt) * NN[1, :]
+            dW_sigma = dW
+            dW_F = np.sqrt(1 - self.rho ** 2) * dB + self.rho * dW
+            for n in range(1, self.N_steps + 1):
+                if F[n - 1] == 0:
+                    F[n] = 0
+                    continue
+
+                sigma[n] = np.abs(self.MilsteinStep(sigma[n - 1], dW_sigma[n - 1]))
+                a = (1. / sigma[n - 1]) * (((F[n - 1] ** (1. - self.beta)) / (1. - self.beta) + (self.rho / self.alpha) * (sigma[n] - sigma[n - 1])) ** 2)
+                unif = np.random.uniform(0, 1)
+                pr_zero = AbsorptionConditionalProb(a, b)
+                if pr_zero > unif:
+                    F[n] = 0
+                    continue
+
+                F[n] = self.EulerMaruyamaStep(F[n - 1], sigma[n - 1], dW_F[n - 1])
+            price_trajectories[m, :] = F
+
+        return price_trajectories
 
 
 class Heston_MC():
@@ -272,8 +307,8 @@ if __name__ == '__main__':
     N_steps = 12 * 1e3  # number of steps in a single simulation
     N_simulations = 1e5  # number of simulations
 
-    generate_data(F_0, Time_horizon, 'quarterly', 'Data/Options.csv')
-    options_csv = pd.read_csv('Data/Options.csv', sep=',')
+    generate_data(F_0, Time_horizon, 'quarterly', '../StandardApproach/Data/Options.csv')
+    options_csv = pd.read_csv('../StandardApproach/Data/Options.csv', sep=',')
     options = [VanillaOption(row[0], row[1], row[2]) for row in zip(options_csv['Expiration_date'], options_csv['Strike'], options_csv['Call_or_Put'])]
     mc = SABR_MC(F_0=F_0, sigma_0=sigma_0, r=r, alpha=alpha, beta=beta, rho=rho, Time_horizon=Time_horizon, N_steps=N_steps, N_simulations=N_simulations)
     options = mc.simulate(options)

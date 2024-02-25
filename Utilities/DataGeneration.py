@@ -25,4 +25,4 @@ def generate_data(S0, T, frequency, file):
 
 
 if __name__ == "__main__":
-    generate_data(100, 2, 'quarterly', "Data/Options.csv")
+    generate_data(100, 2, 'quarterly', "../StandardApproach/Data/Options.csv")
