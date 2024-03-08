@@ -1,6 +1,8 @@
-from NeuralLV import NeuralLV, Discriminator, train_GAN as trainLV
-from NeuralLSV import NeuralLSV, train_GAN as trainLSV
-from NeuralSDE import NeuralSDE, train_GAN as trainSDE
+from Models.Discriminator import Discriminator
+from Models.NeuralLV import NeuralLV
+from Models.NeuralLSV import NeuralLSV
+from Models.NeuralSDE import NeuralSDE
+from WassersteinGAN.trainGAN import train_GAN
 import torch
 import numpy as np
 import pandas as pd
@@ -61,7 +63,7 @@ generatorLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, us
                        test_normal_variables=test_normal_variables[0])
 discriminatorLV = Discriminator(N_steps, num_layers, layer_size, device)
 print('Neural Local Volatility Model initiated')
-trainLV(generatorLV, discriminatorLV, target, epochs, batch_size, device)
+train_GAN(generatorLV, discriminatorLV, target, epochs, batch_size, device)
 print('Neural Local Volatility Model trained')
 torch.cuda.empty_cache()
 
@@ -76,7 +78,7 @@ generatorLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, 
                          test_normal_variables=test_normal_variables)
 discriminatorLSV = Discriminator(N_steps, num_layers, layer_size, device)
 print('Neural Local Stochastic Volatility Model initiated')
-trainLSV(generatorLSV, discriminatorLSV, target, epochs, batch_size, device)
+train_GAN(generatorLSV, discriminatorLSV, target, epochs, batch_size, device)
 print('Neural Local Stochastic Volatility Model trained')
 torch.cuda.empty_cache()
 
@@ -91,5 +93,5 @@ generatorSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, 
                          test_normal_variables=test_normal_variables)
 discriminatorSDE = Discriminator(N_steps, num_layers, layer_size, device)
 print('Neural Stochastic Differential Equation Model initiated')
-trainSDE(generatorSDE, discriminatorSDE, target, epochs, batch_size, device)
+train_GAN(generatorSDE, discriminatorSDE, target, epochs, batch_size, device)
 print('Neural Stochastic Differential Equation Model trained')
