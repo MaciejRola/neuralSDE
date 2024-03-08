@@ -60,4 +60,4 @@ In the standard approach we train models based on Mean Square Error between opti
 ## Wasserstein approach
 In Wasserstein approach we train models based on similarity of distributions between paths from SABR model and paths from our model at various timesteps. File 'Wasserstein/Data/Wasserstein_target.pth.tar' contains simulated paths from SABR model. Our model simulates paths iteratively during training procedure.
 ## Wasserstein GAN approach
-In Wasserstein approach we train models by two models: generator (based on above models) and discriminator (standard MLP). 
+In Wasserstein GAN approach we train two models: generator (based on above models) and discriminator (standard MLP). Our goal is to train generator to succesfully trick the trained discriminator. We make use of Wasserstein GAN with gradient penalty.
