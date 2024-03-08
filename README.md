@@ -59,3 +59,5 @@ where all functions are given by feedforward neural networks with optional batch
 In the standard approach we train models based on Mean Square Error between option prices from the model and from Monte Carlo simulations. File 'StandardApproach/Data/Options_results.csv' contains option prices for chosen maturities.
 ## Wasserstein approach
 In Wasserstein approach we train models based on similarity of distributions between paths from SABR model and paths from our model at various timesteps. File 'Wasserstein/Data/Wasserstein_target.pth.tar' contains simulated paths from SABR model. Our model simulates paths iteratively during training procedure.
+## Wasserstein GAN approach
+In Wasserstein approach we train models by two models: generator (based on above models) and discriminator (standard MLP). 
