@@ -4,8 +4,7 @@ import numpy as np
 import pandas as pd
 from scipy import stats, integrate
 from scipy.special._ufuncs import gammainc
-
-from DataGeneration import generate_data
+from Utilities.DataGeneration import generate_data
 
 start = time()
 

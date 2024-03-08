@@ -17,7 +17,6 @@ def train_Wasserstein(model, target, epochs, batch_size, threshold=1e-5):
     modelling_vol = hasattr(model, 'V0')
     N_simulations = model.N_simulations
     N_steps = model.N_steps
-    period_length = model.period_length
 
     parameters_SDE = list(model.leverage.parameters())
     optimizer_SDE = optim.Adam(parameters_SDE, lr=1e-2)
@@ -52,7 +51,7 @@ def train_Wasserstein(model, target, epochs, batch_size, threshold=1e-5):
         with torch.no_grad():
             model.eval()
             S = model.S0.repeat(1, N_simulations).to(model.device)
-            test_loss = torch.tensor(0)
+            test_loss = torch.tensor(0, device=model.device, dtype=torch.float32)
             for step in range(1, N_steps + 1):
                 pred = model.simulate_paths(S, step)
                 S = pred
@@ -76,14 +75,7 @@ def train_Wasserstein(model, target, epochs, batch_size, threshold=1e-5):
             loss_val_best = test_loss.item()
             print(f'loss_val_best: {loss_val_best}')
             filename = f'Results/Wasserstein_{model.__class__.__name__}.pth.tar'
-            with torch.no_grad():
-                model.eval()
-                trajectories = torch.zeros(N_simulations, N_steps, device=model.device, requires_grad=False)
-                trajectories[:, 0] = model.S0
-                for step in range(1, N_steps + 1, period_length):
-                    pred = model.simulate_paths(trajectories[:, step - 1].reshape(1, -1), step)
-                    trajectories[:, step] = pred
-            checkpoint = {'state_dict': model.state_dict(), 'pred': trajectories, 'target': target}
+            checkpoint = {'state_dict': model.state_dict(), 'loss': loss_val_best}
             torch.save(checkpoint, filename)
 
         if total_loss.item() < threshold:

@@ -3,9 +3,9 @@ import numpy as np
 import pandas as pd
 import os.path
 from Utilities.MC import SABR_MC
-from StandardApproach.NeuralLV import NeuralLV
-from StandardApproach.NeuralLSV import NeuralLSV
-from StandardApproach.NeuralSDE import NeuralSDE
+from Models.NeuralLV import NeuralLV
+from Models.NeuralLSV import NeuralLSV
+from Models.NeuralSDE import NeuralSDE
 from Wasserstein import train_Wasserstein
 
 
@@ -36,7 +36,7 @@ layer_size_hedging = 30
 dropout = 0.0
 n_maturities = maturities.shape[0]
 n_strikes = strikes.shape[0]
-use_hedging = True
+use_hedging = False
 use_batchnorm = False
 
 # simulation parameters
@@ -57,8 +57,8 @@ sigma_0 = 0.3  # initial volatility of the underlying
 alpha = 0.2  # volatility of future price volatility
 beta = 0.6  # exponent in SDE
 rho = 0.2  # correlation coefficient
-
-if ~os.path.exists('Data/target_Wasserstein.pth.tar'):
+if not os.path.exists('Data/target_Wasserstein.pth.tar'):
+    print('Simulating target paths for Wasserstein distance calculation')
     sabr = SABR_MC(F_0=F0, sigma_0=sigma_0, r=rfr, alpha=alpha, beta=beta, rho=rho, Time_horizon=Time_horizon, N_steps=N_steps, N_simulations=N_simulations)
     target_numpy = sabr.simulate_paths()
     target = torch.tensor(target_numpy, dtype=torch.float32)
@@ -77,9 +77,6 @@ modelLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_ba
                    test_normal_variables=test_normal_variables)
 
 print('Neural Local Volatility Model initiated')
-best_modelLV = torch.load('../StandardApproach/Results/NeuralLV.pth.tar')
-modelLV.load_state_dict(best_modelLV['state_dict'])
-print('Neural Local Volatility Model loaded')
 train_Wasserstein(modelLV, target, epochs, batch_size)
 print('Neural Local Volatility Model trained')
 torch.cuda.empty_cache()
@@ -94,9 +91,6 @@ modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_
                      num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
                      test_normal_variables=test_normal_variables)
 print('Neural Local Stochastic Volatility Model initiated')
-best_modelLSV = torch.load('../StandardApproach/Results/NeuralLSV.pth.tar')
-modelLSV.load_state_dict(best_modelLSV['state_dict'])
-print('Neural Local Volatility Model loaded')
 train_Wasserstein(modelLSV, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
 print('Neural Local Stochastic Volatility Model trained')
 torch.cuda.empty_cache()
@@ -111,8 +105,5 @@ modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_
                      num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
                      test_normal_variables=test_normal_variables)
 print('Neural Stochastic Differential Equation Model initiated')
-best_modelSDE = torch.load('../StandardApproach/Results/NeuralSDE.pth.tar')
-modelSDE.load_state_dict(best_modelSDE['state_dict'])
-print('Neural Local Volatility Model loaded')
 train_Wasserstein(modelSDE, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
 print('Neural Stochastic Differential Equation Model trained')

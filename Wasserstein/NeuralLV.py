@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import os.path
 from Utilities.MC import SABR_MC
-from StandardApproach.NeuralLV import NeuralLV
+from Models.NeuralLV import NeuralLV
 from Wasserstein import train_Wasserstein
 
 
