@@ -38,12 +38,12 @@ num_layers_hedging = 3
 layer_size = 50
 layer_size_hedging = 30
 dropout = 0.0
-use_hedging = True
+use_hedging = False
 use_batchnorm = False
 
 # simulation parameters
-batch_size = 20000
-epochs = 100000
+batch_size = 10000
+epochs = 1000
 N_simulations = 20 * batch_size
 N_steps = 96
 period_length = N_steps // n_maturities
@@ -53,6 +53,12 @@ MC_samples_test = 200000
 test_normal_variables = torch.randn(2, MC_samples_test, N_steps, requires_grad=False)
 # We will use antithetic Brownian paths for testing
 test_normal_variables = torch.cat([test_normal_variables, -test_normal_variables], 1)
+
+# parameters for the SABR model
+sigma_0 = 0.3  # initial volatility of the underlying
+alpha = 0.2  # volatility of future price volatility
+beta = 0.6  # exponent in SDE
+rho = 0.2  # correlation coefficient
 
 if not os.path.exists('./neuralSDE/WassersteinGAN/Data/target_Wasserstein.pth.tar'):
     print('Simulating target paths for WassersteinGAN distance calculation')

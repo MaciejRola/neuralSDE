@@ -43,14 +43,14 @@ use_hedging = False
 use_batchnorm = False
 
 # simulation parameters
-batch_size = 40000
-epochs = 100000
+batch_size = 10000
+epochs = 1000
 N_simulations = 20 * batch_size
 N_steps = 96
 period_length = N_steps // n_maturities
 
 # Monte Carlo test data
-MC_samples_test = 200000
+MC_samples_test = 100000
 test_normal_variables = torch.randn(MC_samples_test, N_steps, requires_grad=False)
 # We will use antithetic Brownian paths for testing
 test_normal_variables = torch.cat([test_normal_variables, -test_normal_variables], 0)

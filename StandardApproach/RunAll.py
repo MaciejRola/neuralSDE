@@ -41,8 +41,8 @@ use_hedging = True
 use_batchnorm = False
 
 # simulation parameters
-batch_size = 20000
-epochs = 100000
+batch_size = 10000
+epochs = 1000
 N_simulations = 20 * batch_size
 N_steps = 96
 period_length = N_steps // n_maturities
