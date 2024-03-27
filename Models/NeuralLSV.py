@@ -120,13 +120,14 @@ class NeuralLSV(nn.Module):
 
         return prices, variance
 
-    def simulate_paths(self, S_prev, V_prev, N_step):
+    def simulate_values(self, S_prev, V_prev, N_step, N_simulations=None):
         dt = self.dt
         r = self.rfr
         rho = self.rho
-
         if self.training:
             batch_size = self.batch_size
+        elif N_simulations is not None:
+            batch_size = N_simulations
         else:
             batch_size = self.N_simulations
         if S_prev.ndim == 0:
@@ -144,11 +145,26 @@ class NeuralLSV(nn.Module):
         b_V = self.b_V(idx, V_prev)
         sigma_V = self.sigma_V(idx, V_prev)
 
-        NN1 = torch.randn(self.batch_size, device=self.device, requires_grad=False)
-        NN2 = torch.randn(self.batch_size, device=self.device, requires_grad=False)
+        NN1 = torch.randn(batch_size, device=self.device, requires_grad=False)
+        NN2 = torch.randn(batch_size, device=self.device, requires_grad=False)
         dW = torch.sqrt(dt) * NN2
         dB = rho * dW + torch.sqrt(1 - rho ** 2) * torch.sqrt(dt) * NN1
 
         S_curr = S_prev + b_S * dt + sigma_S * dW
         V_curr = torch.clamp(V_prev + b_V * dt + sigma_V * dB, 0)
         return S_curr, V_curr
+
+    def simulate_paths(self, batch_size):
+        S = self.S0.repeat(1, batch_size).to(self.device)
+        modelling_vol = hasattr(self, 'V0')
+        if modelling_vol:
+            V = self.V0.repeat(1, batch_size).to(self.device)
+        paths = torch.zeros(batch_size, self.N_steps + 1, device=self.device)
+        paths[:, 0] = S[0, :]
+        for step in range(1, self.N_steps + 1):
+            if modelling_vol:
+                S, V = self.simulate_values(S, V, step)
+            else:
+                S = self.simulate_values(S, step)
+            paths[..., step] = S
+        return paths

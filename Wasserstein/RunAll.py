@@ -20,7 +20,7 @@ else:
 print(f'Using {device}')
 
 # data for parametrization of neuralLV model
-options = pd.read_csv('.neuralSDE/StandardApproach/Data/Options_results.csv')
+options = pd.read_csv('./neuralSDE/StandardApproach/Data/Options_results.csv')
 options = options[options['Expiration_date'].isin([0.5, 1.0, 1.5, 2.0])]
 maturities = options['Expiration_date'].unique()
 strikes = options['Strike'].unique()
@@ -60,6 +60,7 @@ sigma_0 = 0.3  # initial volatility of the underlying
 alpha = 0.2  # volatility of future price volatility
 beta = 0.6  # exponent in SDE
 rho = 0.2  # correlation coefficient
+
 if not os.path.exists('./neuralSDE/Wasserstein/Data/target_Wasserstein.pth.tar'):
     print('Simulating target paths for Wasserstein distance calculation')
     sabr = SABR_MC(F_0=F0, sigma_0=sigma_0, r=rfr, alpha=alpha, beta=beta, rho=rho, Time_horizon=Time_horizon, N_steps=N_steps, N_simulations=N_simulations)
@@ -69,44 +70,47 @@ if not os.path.exists('./neuralSDE/Wasserstein/Data/target_Wasserstein.pth.tar')
 else:
     target = torch.load('./neuralSDE/Wasserstein/Data/target_Wasserstein.pth.tar')
 
-with open("/neuralSDE/Wasserstein/Results/log_eval_LV_Wasserstein.txt", "w") as f:
-    f.write('epoch,loss\n')
+if not os.path.exists('./neuralSDE/Wasserstein/Results/Wasserstein_NeuralLV.pth.tar'):
+    with open("./neuralSDE/Wasserstein/Results/log_eval_LV_Wasserstein.txt", "w") as f:
+        f.write('epoch,loss\n')
 
-modelLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
-                   N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
-                   S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
-                   num_layers=num_layers, layer_size=layer_size,
-                   num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
-                   test_normal_variables=test_normal_variables)
+    modelLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
+                       N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
+                       S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
+                       num_layers=num_layers, layer_size=layer_size,
+                       num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
+                       test_normal_variables=test_normal_variables)
 
-print('Neural Local Volatility Model initiated')
-train_Wasserstein(modelLV, target, epochs, batch_size)
-print('Neural Local Volatility Model trained')
-torch.cuda.empty_cache()
+    print('Neural Local Volatility Model initiated')
+    train_Wasserstein(modelLV, target, epochs, batch_size)
+    print('Neural Local Volatility Model trained')
+    torch.cuda.empty_cache()
 
-with open("/neuralSDE/Wasserstein/Results/log_eval_Wasserstein_NeuralLSV.txt", "w") as f:
-    f.write('epoch,loss\n')
+if not os.path.exists('./neuralSDE/Wasserstein/Results/Wasserstein_NeuralLSV.pth.tar'):
+    with open("./neuralSDE/Wasserstein/Results/log_eval_Wasserstein_NeuralLSV.txt", "w") as f:
+        f.write('epoch,loss\n')
 
-modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
-                     N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
-                     S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
-                     num_layers=num_layers, layer_size=layer_size,
-                     num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
-                     test_normal_variables=test_normal_variables)
-print('/neuralSDE/Wasserstein/Neural Local Stochastic Volatility Model initiated')
-train_Wasserstein(modelLSV, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
-print('Neural Local Stochastic Volatility Model trained')
-torch.cuda.empty_cache()
+    modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
+                         N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
+                         S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
+                         num_layers=num_layers, layer_size=layer_size,
+                         num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
+                         test_normal_variables=test_normal_variables)
+    print('./neuralSDE/Wasserstein/Neural Local Stochastic Volatility Model initiated')
+    train_Wasserstein(modelLSV, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
+    print('Neural Local Stochastic Volatility Model trained')
+    torch.cuda.empty_cache()
 
-with open("/neuralSDE/Wasserstein/Results/log_eval_Wasserstein_NeuralSDE.txt", "w") as f:
-    f.write('epoch,loss\n')
+if not os.path.exists('./neuralSDE/Wasserstein/Results/Wasserstein_NeuralSDE.pth.tar'):
+    with open("./neuralSDE/Wasserstein/Results/log_eval_Wasserstein_NeuralSDE.txt", "w") as f:
+        f.write('epoch,loss\n')
 
-modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
-                     N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
-                     S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
-                     num_layers=num_layers, layer_size=layer_size,
-                     num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
-                     test_normal_variables=test_normal_variables)
-print('Neural Stochastic Differential Equation Model initiated')
-train_Wasserstein(modelSDE, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
-print('Neural Stochastic Differential Equation Model trained')
+    modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
+                         N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
+                         S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
+                         num_layers=num_layers, layer_size=layer_size,
+                         num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
+                         test_normal_variables=test_normal_variables)
+    print('Neural Stochastic Differential Equation Model initiated')
+    train_Wasserstein(modelSDE, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
+    print('Neural Stochastic Differential Equation Model trained')

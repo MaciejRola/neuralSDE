@@ -6,8 +6,8 @@ import torch
 from scipy import stats
 from scipy.special._ufuncs import gammainc
 from Utilities.DataGeneration import generate_data
-
-
+from Models.Discriminator import Discriminator
+disc = Discriminator(96, 50, 3, 0.0, False)
 start = time()
 
 # SABR model parameters
