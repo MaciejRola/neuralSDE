@@ -1,4 +1,7 @@
-from Models.Discriminator import Discriminator
+import sys
+print(sys.path)
+
+from ..Models.Discriminator import Discriminator
 from Models.NeuralLV import NeuralLV
 from Models.NeuralLSV import NeuralLSV
 from Models.NeuralSDE import NeuralSDE
