@@ -1,10 +1,13 @@
+import sys
+import os
+sys.path.append(os.getcwd())
 import torch
 import numpy as np
 import pandas as pd
 import os.path
-from Utilities.MC import SABR_MC
-from Models.NeuralSDE import NeuralSDE
-from Wasserstein import train_Wasserstein
+from neuralSDE.Utilities.MC import SABR_MC
+from neuralSDE.Models.NeuralSDE import NeuralSDE
+from neuralSDE.Wasserstein.Wasserstein import train_Wasserstein
 
 
 if torch.cuda.is_available():
@@ -15,7 +18,7 @@ else:
 print(f'Using {device}')
 
 # data for parametrization of neuralLV model
-options = pd.read_csv('../StandardApproach/Data/Options_results.csv')
+options = pd.read_csv('./neuralSDE/StandardApproach/Data/Options_results.csv')
 options = options[options['Expiration_date'].isin([0.5, 1.0, 1.5, 2.0])]
 maturities = options['Expiration_date'].unique()
 strikes = options['Strike'].unique()
@@ -56,15 +59,15 @@ alpha = 0.2  # volatility of future price volatility
 beta = 0.6  # exponent in SDE
 rho = 0.2  # correlation coefficient
 
-if ~os.path.exists('Data/target_Wasserstein.pth'):
+if ~os.path.exists('/neuralSDE/Wasserstein/Data/target_Wasserstein.pth'):
     sabr = SABR_MC(F_0=F0, sigma_0=sigma_0, r=rfr, alpha=alpha, beta=beta, rho=rho, Time_horizon=Time_horizon, N_steps=N_steps, N_simulations=N_simulations)
     target_numpy = sabr.simulate_paths()
     target = torch.tensor(target_numpy, dtype=torch.float32)
-    torch.save(target, 'Data/target_Wasserstein.pth')
+    torch.save(target, '/neuralSDE/Wasserstein/Data/target_Wasserstein.pth')
 else:
-    target = torch.load('Data/target_Wasserstein.pth')
+    target = torch.load('/neuralSDE/Wasserstein/Data/target_Wasserstein.pth')
 
-with open("Results/log_eval_Wasserstain_NeuralSDE", "w") as f:
+with open("/neuralSDE/Wasserstein/Results/log_eval_Wasserstain_NeuralSDE", "w") as f:
     f.write('Epoch,loss\n')
 
 modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,

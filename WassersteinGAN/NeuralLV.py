@@ -1,9 +1,14 @@
+import sys
+import os
+sys.path.append(os.getcwd())
 import torch
 import numpy as np
 import pandas as pd
 import os.path
-from Utilities.MC import SABR_MC
-from Models.NeuralLV import NeuralLV
+from neuralSDE.Utilities.MC import SABR_MC
+from neuralSDE.Models.NeuralLV import NeuralLV
+from neuralSDE.Models.Discriminator import Discriminator
+from neuralSDE.WassersteinGAN.trainGAN import train_GAN
 
 
 if __name__ == "__main__":
@@ -15,7 +20,7 @@ if __name__ == "__main__":
     print(f'Using {device}')
 
     # data for parametrization of neuralLV model
-    options = pd.read_csv('../StandardApproach/Data/Options_results.csv')
+    options = pd.read_csv('./neuralSDE/StandardApproach/Data/Options_results.csv')
     options = options[options['Expiration_date'].isin([0.5, 1.0, 1.5, 2.0])]
     maturities = options['Expiration_date'].unique()
     strikes = options['Strike'].unique()
@@ -56,14 +61,14 @@ if __name__ == "__main__":
     beta = 0.6  # exponent in SDE
     rho = 0.2  # correlation coefficient
 
-    if not os.path.exists('Data/target_Wasserstein.pth.tar'):
-        print('Simulating target paths for Wasserstein distance calculation')
+    if not os.path.exists('./neuralSDE/WassersteinGAN/Data/target_Wasserstein.pth.tar'):
+        print('Simulating target paths for WassersteinGAN distance calculation')
         sabr = SABR_MC(F_0=F0, sigma_0=sigma_0, r=rfr, alpha=alpha, beta=beta, rho=rho, Time_horizon=Time_horizon, N_steps=N_steps, N_simulations=N_simulations)
         target_numpy = sabr.simulate_paths()
         target = torch.tensor(target_numpy, dtype=torch.float32)
-        torch.save(target, 'Data/target_Wasserstein.pth.tar')
+        torch.save(target, './neuralSDE/WassersteinGAN/Data/target_Wasserstein.pth.tar')
     else:
-        target = torch.load('Data/target_Wasserstein.pth.tar')
+        target = torch.load('./neuralSDE/WassersteinGAN/Data/target_Wasserstein.pth.tar')
 
     generator = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
                          N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,

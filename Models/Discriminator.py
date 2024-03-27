@@ -1,5 +1,5 @@
 import torch.nn as nn
-
+__package__ = None
 
 class Discriminator(nn.Module):
     def __init__(self, N_steps, num_layers, layer_size, device):

@@ -1,6 +1,6 @@
 import torch
 import torch.nn as nn
-from Utilities.BaseNet import timegridNet
+from neuralSDE.Utilities.BaseNet import timegridNet
 
 
 class NeuralSDE(nn.Module):

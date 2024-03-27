@@ -1,12 +1,15 @@
+import sys
+import os
+sys.path.append(os.getcwd())
 import torch
 import numpy as np
 import pandas as pd
 import os.path
-from Utilities.MC import SABR_MC
-from Models.NeuralLV import NeuralLV
-from Models.NeuralLSV import NeuralLSV
-from Models.NeuralSDE import NeuralSDE
-from Wasserstein import train_Wasserstein
+from neuralSDE.Utilities.MC import SABR_MC
+from neuralSDE.Models.NeuralLV import NeuralLV
+from neuralSDE.Models.NeuralLSV import NeuralLSV
+from neuralSDE.Models.NeuralSDE import NeuralSDE
+from neuralSDE.Wasserstein.Wasserstein import train_Wasserstein
 
 
 if torch.cuda.is_available():
@@ -17,7 +20,7 @@ else:
 print(f'Using {device}')
 
 # data for parametrization of neuralLV model
-options = pd.read_csv('../StandardApproach/Data/Options_results.csv')
+options = pd.read_csv('.neuralSDE/StandardApproach/Data/Options_results.csv')
 options = options[options['Expiration_date'].isin([0.5, 1.0, 1.5, 2.0])]
 maturities = options['Expiration_date'].unique()
 strikes = options['Strike'].unique()
@@ -57,16 +60,16 @@ sigma_0 = 0.3  # initial volatility of the underlying
 alpha = 0.2  # volatility of future price volatility
 beta = 0.6  # exponent in SDE
 rho = 0.2  # correlation coefficient
-if not os.path.exists('Data/target_Wasserstein.pth.tar'):
+if not os.path.exists('./neuralSDE/Wasserstein/Data/target_Wasserstein.pth.tar'):
     print('Simulating target paths for Wasserstein distance calculation')
     sabr = SABR_MC(F_0=F0, sigma_0=sigma_0, r=rfr, alpha=alpha, beta=beta, rho=rho, Time_horizon=Time_horizon, N_steps=N_steps, N_simulations=N_simulations)
     target_numpy = sabr.simulate_paths()
     target = torch.tensor(target_numpy, dtype=torch.float32)
-    torch.save(target, 'Data/target_Wasserstein.pth.tar')
+    torch.save(target, './neuralSDE/Wasserstein/Data/target_Wasserstein.pth.tar')
 else:
-    target = torch.load('Data/target_Wasserstein.pth.tar')
+    target = torch.load('./neuralSDE/Wasserstein/Data/target_Wasserstein.pth.tar')
 
-with open("Results/log_eval_LV_Wasserstein.txt", "w") as f:
+with open("/neuralSDE/Wasserstein/Results/log_eval_LV_Wasserstein.txt", "w") as f:
     f.write('epoch,loss\n')
 
 modelLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
@@ -81,7 +84,7 @@ train_Wasserstein(modelLV, target, epochs, batch_size)
 print('Neural Local Volatility Model trained')
 torch.cuda.empty_cache()
 
-with open("Results/log_eval_Wasserstein_NeuralLSV.txt", "w") as f:
+with open("/neuralSDE/Wasserstein/Results/log_eval_Wasserstein_NeuralLSV.txt", "w") as f:
     f.write('epoch,loss\n')
 
 modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
@@ -90,12 +93,12 @@ modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_
                      num_layers=num_layers, layer_size=layer_size,
                      num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
                      test_normal_variables=test_normal_variables)
-print('Neural Local Stochastic Volatility Model initiated')
+print('/neuralSDE/Wasserstein/Neural Local Stochastic Volatility Model initiated')
 train_Wasserstein(modelLSV, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
 print('Neural Local Stochastic Volatility Model trained')
 torch.cuda.empty_cache()
 
-with open("Results/log_eval_Wasserstein_NeuralSDE.txt", "w") as f:
+with open("/neuralSDE/Wasserstein/Results/log_eval_Wasserstein_NeuralSDE.txt", "w") as f:
     f.write('epoch,loss\n')
 
 modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,

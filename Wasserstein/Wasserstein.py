@@ -60,21 +60,21 @@ def train_Wasserstein(model, target, epochs, batch_size, threshold=1e-5):
         print(f'Epoch: {epoch}, Loss: {test_loss.item()}')
         scheduler_SDE.step()
 
-        with open(f"Results/log_eval_Wasserstein_{model.__class__.__name__}.txt", "a") as f:
+        with open(f"/neuralSDE/Wasserstein/Results/log_eval_Wasserstein_{model.__class__.__name__}.txt", "a") as f:
             f.write(f'{epoch},{test_loss.item()}\n')
 
         LOSSES.append(test_loss.item())
         if len(LOSSES) > 1:
             plt.plot(LOSSES, label='Wasserstein loss')
             plt.legend()
-            plt.savefig(f'Results/loss_Wasserstein_{model.__class__.__name__}.png')
+            plt.savefig(f'/neuralSDE/Wasserstein/Results/loss_Wasserstein_{model.__class__.__name__}.png')
             plt.close()
 
         if test_loss.item() < loss_val_best:
             model_best = model
             loss_val_best = test_loss.item()
             print(f'loss_val_best: {loss_val_best}')
-            filename = f'Results/Wasserstein_{model.__class__.__name__}.pth.tar'
+            filename = f'/neuralSDE/Wasserstein/Results/Wasserstein_{model.__class__.__name__}.pth.tar'
             checkpoint = {'state_dict': model.state_dict(), 'loss': loss_val_best}
             torch.save(checkpoint, filename)
 

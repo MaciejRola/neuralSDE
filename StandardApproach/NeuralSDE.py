@@ -1,3 +1,6 @@
+import sys
+import os
+sys.path.append(os.getcwd())
 import time
 import matplotlib.pyplot as plt
 import numpy as np
@@ -6,7 +9,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from torchinfo import summary
-from Models.NeuralSDE import NeuralSDE
+from neuralSDE.Models.NeuralSDE import NeuralSDE
 
 
 def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5):
@@ -93,7 +96,7 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
         MSE = loss_fn(prices_mean, target)
         loss_val = torch.sqrt(MSE)
         print(f'epoch={epoch}, loss={loss_val.item()}')
-        with open("Results/log_eval_NeuralSDE.txt", "a") as f:
+        with open("./neuralSDE/StandardApproach/Results/log_eval_NeuralSDE.txt", "a") as f:
             f.write(f'{epoch},{loss_val.item()}\n')
 
         LOSSES.append(loss_val.item())
@@ -106,20 +109,20 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
                 axs[0].legend()
                 axs[1].plot(VARIANCES, label='Mean price Variance')
                 axs[1].legend()
-                plt.savefig('Results/loss_and_var_NeuralSDE.png')
+                plt.savefig('./neuralSDE/StandardApproach/Results/loss_and_var_NeuralSDE.png')
                 plt.close()
         else:
             if len(LOSSES) > 1:
                 plt.plot(LOSSES, label='RMSE Error')
                 plt.legend()
-                plt.savefig('Results/loss_NeuralSDE.png')
+                plt.savefig('./neuralSDE/StandardApproach/Results/loss_NeuralSDE.png')
                 plt.close()
 
         if loss_val < loss_val_best:
             model_best = model
             loss_val_best = loss_val
             print(f'loss_val_best: {loss_val_best.item()}')
-            filename = 'Results/NeuralSDE.pth.tar'
+            filename = './neuralSDE/StandardApproach/Results/NeuralSDE.pth.tar'
             checkpoint = {'state_dict': model.state_dict(), 'pred': prices_mean, 'target': target}
             torch.save(checkpoint, filename)
 
@@ -137,7 +140,7 @@ if __name__ == '__main__':
         device = 'cpu'
     print(f'Using {device}')
 
-    options = pd.read_csv('Data/Options_results.csv')
+    options = pd.read_csv('./neuralSDE/StandardApproach/Data/Options_results.csv')
     options = options[options['Expiration_date'].isin([1.0, 2.0])]
     maturities = options['Expiration_date'].unique()
     strikes = options['Strike'].unique() / 100
@@ -174,7 +177,7 @@ if __name__ == '__main__':
     # We will use antithetic Brownian paths for testing
     test_normal_variables = torch.cat([test_normal_variables, -test_normal_variables], 0)
 
-    with open("Results/log_eval_NeuralSDE.txt", "w") as f:
+    with open("./neuralSDE/StandardApproach/Results/log_eval_NeuralSDE.txt", "w") as f:
         f.write('Initialisation\n')
 
     model = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,

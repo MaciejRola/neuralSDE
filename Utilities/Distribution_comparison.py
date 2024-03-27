@@ -1,9 +1,9 @@
 import numpy as np
 import matplotlib.pyplot as plt
-from Utilities.MC import SABR_MC
+from neuralSDE.Utilities.MC import SABR_MC
 import pandas as pd
 import torch
-from Models.NeuralLV import NeuralLV
+from neuralSDE.Models.NeuralLV import NeuralLV
 import seaborn as sns
 
 if torch.cuda.is_available():
@@ -61,7 +61,7 @@ model = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batc
                  num_layers=num_layers, layer_size=layer_size,
                  num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
                  test_normal_variables=test_normal_variables)
-best_modelLV = torch.load('../Wasserstein/Results/Wasserstein_NeuralLV.pth.tar')
+best_modelLV = torch.load('')
 model.load_state_dict(best_modelLV['state_dict'])
 model.eval()
 
