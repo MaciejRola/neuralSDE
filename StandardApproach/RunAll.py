@@ -4,6 +4,7 @@ from NeuralSDE import NeuralSDE, train as trainSDE
 import torch
 import numpy as np
 import pandas as pd
+import os
 
 
 if torch.cuda.is_available():
@@ -34,12 +35,12 @@ num_layers_hedging = 3
 layer_size = 50
 layer_size_hedging = 30
 dropout = 0.0
-use_hedging = True
+use_hedging = False
 use_batchnorm = False
 
 # simulation parameters
 batch_size = 20000
-epochs = 100000
+epochs = 1000
 N_simulations = 20 * batch_size
 N_steps = 96
 period_length = N_steps // n_maturities
@@ -49,44 +50,48 @@ MC_samples_test = 200000
 test_normal_variables = torch.randn(2, MC_samples_test, N_steps, requires_grad=False)
 # We will use antithetic Brownian paths for testing
 test_normal_variables = torch.cat([test_normal_variables, -test_normal_variables], 1)
+for use_hedging in [False, True]:
 
-with open("Results/log_eval_NeuralLV.txt", "w") as f:
-    f.write('epoch,loss\n')
+    if not os.path.exists(f'Results/NeuralLV_use_hedging_{use_hedging}.pth.tar'):
+        with open(f"Results/log_eval_NeuralLV_use_hedging_{use_hedging}.txt", "w") as f:
+            f.write('epoch,loss\n')
 
-modelLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
-                   N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
-                   S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
-                   num_layers=num_layers, layer_size=layer_size,
-                   num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
-                   test_normal_variables=test_normal_variables[0])
-print('Neural Local Volatility Model initiated')
-trainLV(modelLV, maturities=maturities, strikes=strikes, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
-print('Neural Local Volatility Model trained')
-torch.cuda.empty_cache()
+        modelLV = NeuralLV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
+                           N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
+                           S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
+                           num_layers=num_layers, layer_size=layer_size,
+                           num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
+                           test_normal_variables=test_normal_variables[0])
+        print('Neural Local Volatility Model initiated')
+        trainLV(modelLV, maturities=maturities, strikes=strikes, target=target, batch_size=batch_size, epochs=epochs, threshold=1e-5)
+        print('Neural Local Volatility Model trained')
+        torch.cuda.empty_cache()
 
-with open("Results/log_eval_NeuralLSV.txt", "w") as f:
-    f.write('epoch,loss\n')
+    if not os.path.exists(f'Results/NeuralLSV_use_hedging_{use_hedging}.pth.tar'):
+        with open(f"Results/log_eval_NeuralLSV_use_hedging_{use_hedging}.txt", "w") as f:
+            f.write('epoch,loss\n')
 
-modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
-                     N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
-                     S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
-                     num_layers=num_layers, layer_size=layer_size,
-                     num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
-                     test_normal_variables=test_normal_variables)
-print('Neural Local Stochastic Volatility Model initiated')
-trainLSV(modelLSV, maturities=maturities, strikes=strikes, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
-print('Neural Local Stochastic Volatility Model trained')
-torch.cuda.empty_cache()
+        modelLSV = NeuralLSV(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
+                             N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
+                             S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
+                             num_layers=num_layers, layer_size=layer_size,
+                             num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
+                             test_normal_variables=test_normal_variables)
+        print('Neural Local Stochastic Volatility Model initiated')
+        trainLSV(modelLSV, maturities=maturities, strikes=strikes, target=target, batch_size=batch_size, epochs=epochs, threshold=1e-5)
+        print('Neural Local Stochastic Volatility Model trained')
+        torch.cuda.empty_cache()
 
-with open("Results/log_eval_NeuralSDE.txt", "w") as f:
-    f.write('epoch,loss\n')
+    if not os.path.exists(f'Results/NeuralSDE_use_hedging_{use_hedging}.pth.tar'):
+        with open(f"Results/log_eval_NeuralSDE_use_hedging_{use_hedging}.txt", "w") as f:
+            f.write('epoch,loss\n')
 
-modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
-                     N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
-                     S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
-                     num_layers=num_layers, layer_size=layer_size,
-                     num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
-                     test_normal_variables=test_normal_variables)
-print('Neural Stochastic Differential Equation Model initiated')
-trainSDE(modelSDE, maturities=maturities, strikes=strikes, target=target, batch_size=batch_size, epochs=epochs, threshold=2e-5)
-print('Neural Stochastic Differential Equation Model trained')
+        modelSDE = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,
+                             N_simulations=N_simulations, N_steps=N_steps, Time_horizon=Time_horizon, period_length=period_length,
+                             S0=S0, n_maturities=n_maturities, n_strikes=n_strikes, rfr=rfr,
+                             num_layers=num_layers, layer_size=layer_size,
+                             num_layers_hedging=num_layers_hedging, layer_size_hedging=layer_size_hedging,
+                             test_normal_variables=test_normal_variables)
+        print('Neural Stochastic Differential Equation Model initiated')
+        trainSDE(modelSDE, maturities=maturities, strikes=strikes, target=target, batch_size=batch_size, epochs=epochs, threshold=1e-5)
+        print('Neural Stochastic Differential Equation Model trained')

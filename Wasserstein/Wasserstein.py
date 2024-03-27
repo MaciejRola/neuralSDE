@@ -18,7 +18,7 @@ def train_Wasserstein(model, target, epochs, batch_size, threshold=1e-5):
     N_simulations = model.N_simulations
     N_steps = model.N_steps
 
-    parameters_SDE = list(model.leverage.parameters())
+    parameters_SDE = list(model.parameters())
     optimizer_SDE = optim.Adam(parameters_SDE, lr=1e-2)
     scheduler_SDE = optim.lr_scheduler.MultiStepLR(optimizer_SDE, milestones=[500, 800], gamma=0.2, verbose=True)
 
@@ -36,12 +36,12 @@ def train_Wasserstein(model, target, epochs, batch_size, threshold=1e-5):
             for step in range(1, N_steps + 1):
                 curr_target = target[batch:batch + batch_size, step].to(model.device)
                 if modelling_vol:
-                    S, V = model.simulate_paths(S, V, step)
+                    S, V = model.simulate_values(S, V, step)
                 else:
-                    S = model.simulate_paths(S, step)
-                loss = loss_fn(S, curr_target)
-
-                total_loss += loss
+                    S = model.simulate_values(S, step)
+                if step % model.period_length == 0:
+                    loss = loss_fn(S, curr_target)
+                    total_loss += loss
 
             optimizer_SDE.zero_grad()
             batch_losses[batch // batch_size] = total_loss
@@ -51,12 +51,18 @@ def train_Wasserstein(model, target, epochs, batch_size, threshold=1e-5):
         with torch.no_grad():
             model.eval()
             S = model.S0.repeat(1, N_simulations).to(model.device)
+            if modelling_vol:
+                V = model.V0.repeat(1, N_simulations).to(model.device)
             test_loss = torch.tensor(0, device=model.device, dtype=torch.float32)
             for step in range(1, N_steps + 1):
-                pred = model.simulate_paths(S, step)
-                S = pred
-                loss = loss_fn(pred, target[:, step].to(model.device))
-                test_loss += loss
+                if modelling_vol:
+                    S, V = model.simulate_values(S, V, step)
+                else:
+                    S = model.simulate_values(S, step)
+                pred = S
+                if step % model.period_length == 0:
+                    loss = loss_fn(pred, target[:, step].to(model.device))
+                    test_loss += loss
         print(f'Epoch: {epoch}, Loss: {test_loss.item()}')
         scheduler_SDE.step()
 

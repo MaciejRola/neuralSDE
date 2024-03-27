@@ -1,11 +1,9 @@
 from time import time
-
 import numpy as np
 import pandas as pd
 from scipy import stats, integrate
 from scipy.special._ufuncs import gammainc
 from Utilities.DataGeneration import generate_data
-
 start = time()
 
 
@@ -127,11 +125,13 @@ class SABR_MC():
                 option.N_steps_T = int(option.T / self.Time_horizon * self.N_steps)
                 df = np.exp(-self.r * option.T)
                 # we calculate option payoff based on the stock price at time of maturity
-                S = F[option.N_steps_T] * np.exp(-self.r * (self.Time_horizon - option.T))
-                payoff = option.payoff(S)
-                price = payoff * df
-                option.price.append(price)
-        np.savetxt('Data/price_trajectories.npy', price_trajectories, delimiter=',')
+                forward_price = F[option.N_steps_T]
+                if forward_price != 0:
+                    S = F[option.N_steps_T] * np.exp(-self.r * (self.Time_horizon - option.T))
+                    payoff = option.payoff(S)
+                    price = payoff * df
+                    option.price.append(price)
+        np.savetxt('../StandardApproach/Data/price_trajectories.npy', price_trajectories, delimiter=',')
         for option in options:
             option.price = np.mean(option.price)
         return options
@@ -316,7 +316,7 @@ if __name__ == '__main__':
     benchmark_time = time()
     options_csv['Benchmark_price'] = [option.benchmark_price for option in options]
     options_csv['Price'] = [option.price for option in options]
-    options_csv.to_csv('Data/Options_results.csv', index=False)
+    options_csv.to_csv('../StandardApproach/Data/Options_results.csv', index=False)
 
     print('MC time: ', mc_time - start)
     print('Benchmark time: ', benchmark_time - mc_time)

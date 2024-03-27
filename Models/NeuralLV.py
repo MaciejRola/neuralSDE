@@ -124,6 +124,7 @@ class NeuralLV(nn.Module):
         diffusion = leverage / (1 + abs(leverage.detach()) * torch.sqrt(dt))
         NN = torch.randn(batch_size, device=self.device, requires_grad=False)
         dW = torch.sqrt(dt) * NN
+
         S_curr = S_prev + drift * dt + diffusion * dW
         return S_curr
 

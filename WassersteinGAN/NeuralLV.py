@@ -4,6 +4,8 @@ import pandas as pd
 import os.path
 from Utilities.MC import SABR_MC
 from Models.NeuralLV import NeuralLV
+from Models.Discriminator import Discriminator
+from WassersteinGAN.trainGAN import train_GAN
 
 
 if __name__ == "__main__":

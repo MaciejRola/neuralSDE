@@ -93,7 +93,7 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
         MSE = loss_fn(prices_mean, target)
         loss_val = torch.sqrt(MSE)
         print(f'epoch={epoch}, loss={loss_val.item()}')
-        with open("Results/log_eval_NeuralSDE.txt", "a") as f:
+        with open(f"Results/log_eval_NeuralSDE_use_hedging_{model.use_hedging}.txt", "a") as f:
             f.write(f'{epoch},{loss_val.item()}\n')
 
         LOSSES.append(loss_val.item())
@@ -106,21 +106,21 @@ def train(model, maturities, strikes, target, batch_size, epochs, threshold=2e-5
                 axs[0].legend()
                 axs[1].plot(VARIANCES, label='Mean price Variance')
                 axs[1].legend()
-                plt.savefig('Results/loss_and_var_NeuralSDE.png')
+                plt.savefig(f'Results/loss_and_var_NeuralSDE_use_hedging_{model.use_hedging}.png')
                 plt.close()
         else:
             if len(LOSSES) > 1:
                 plt.plot(LOSSES, label='RMSE Error')
                 plt.legend()
-                plt.savefig('Results/loss_NeuralSDE.png')
+                plt.savefig(f'Results/loss_NeuralSDE_use_hedging_{model.use_hedging}.png')
                 plt.close()
 
         if loss_val < loss_val_best:
             model_best = model
             loss_val_best = loss_val
             print(f'loss_val_best: {loss_val_best.item()}')
-            filename = 'Results/NeuralSDE.pth.tar'
-            checkpoint = {'state_dict': model.state_dict(), 'pred': prices_mean, 'target': target}
+            filename = f'Results/NeuralSDE_use_hedging_{model.use_hedging}.pth.tar'
+            checkpoint = {'state_dict': model.state_dict(), 'loss': loss_val_best}
             torch.save(checkpoint, filename)
 
         if loss_val.item() < threshold:
@@ -163,7 +163,7 @@ if __name__ == '__main__':
 
     # simulation parameters
     batch_size = 20000
-    epochs = 1000
+    epochs = 10000
     N_simulations = 20 * batch_size
     N_steps = 96
     period_length = N_steps // n_maturities
@@ -174,7 +174,7 @@ if __name__ == '__main__':
     # We will use antithetic Brownian paths for testing
     test_normal_variables = torch.cat([test_normal_variables, -test_normal_variables], 0)
 
-    with open("Results/log_eval_NeuralSDE.txt", "w") as f:
+    with open(f"Results/log_eval_NeuralSDE_use_hedging_{use_hedging}.txt", "w") as f:
         f.write('Initialisation\n')
 
     model = NeuralSDE(device=device, batch_size=batch_size, dropout=dropout, use_batchnorm=use_batchnorm, use_hedging=use_hedging,

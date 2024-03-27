@@ -24,15 +24,13 @@ class singlePeriodNet(nn.Module):
             x = self.batchnorm1(x)
         x = nn.Dropout(self.dropout)(x)
         # Skip connection 1/2
-        # y = x
-        #
+        y = x
         for layer in self.linears[1:-2]:
             x = layer(x)
             x = self.activation(x)
             x = nn.Dropout(self.dropout)(x)
         # Skip connection 2/2
-        # x = x + y
-        #
+        x = x + y
         x = self.linears[-2](x)
         x = self.activation(x)
         if self.use_batchnorm:

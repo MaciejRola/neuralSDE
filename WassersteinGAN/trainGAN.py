@@ -6,6 +6,8 @@ import matplotlib.pyplot as plt
 def train_GAN(generator, discriminator, target, epochs, batch_size, device, n_critic=2, gp=1, lr=1e-4):
     optimizerG = optim.Adam(generator.parameters(), 10 * lr)
     optimizerD = optim.Adam(discriminator.parameters(), lr / 10)
+    generator.to(device)
+    discriminator.to(device)
     loss_val_best = 1e10
     losses_G = []
     losses_D = []
@@ -47,14 +49,14 @@ def train_GAN(generator, discriminator, target, epochs, batch_size, device, n_cr
             axs[0].legend()
             axs[1].plot(losses_D, label='Discriminator loss')
             axs[1].legend()
-            plt.savefig(f'Results/{generator.__class__.__name__}.png')
+            plt.savefig(f'Results/WassersteinGAN_{generator.__class__.__name__}.png')
             plt.close()
 
         if loss_G.item() < loss_val_best:
             G_best = generator
             loss_val_best = loss_G.item()
             print(f'loss_val_best: {loss_val_best}')
-            filename = f'Results/{generator.__class__.__name__}.pth.tar'
+            filename = f'Results/WassersteinGAN_{generator.__class__.__name__}.pth.tar'
             checkpoint = {'state_dict': generator.state_dict(), 'loss': loss_val_best}
             torch.save(checkpoint, filename)
 
