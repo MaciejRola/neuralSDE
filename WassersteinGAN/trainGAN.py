@@ -4,6 +4,8 @@ import matplotlib.pyplot as plt
 
 
 def train_GAN(generator, discriminator, target, epochs, batch_size, device, n_critic=2, gp=1, lr=1e-4):
+    generator = generator.to(device)
+    discriminator = discriminator.to(device)
     optimizerG = optim.Adam(generator.parameters(), 10 * lr)
     optimizerD = optim.Adam(discriminator.parameters(), lr / 10)
     loss_val_best = 1e10
@@ -19,8 +21,12 @@ def train_GAN(generator, discriminator, target, epochs, batch_size, device, n_cr
             optimizerG.zero_grad()
             optimizerD.zero_grad()
             for batch in range(0, 20 * batch_size, batch_size):
+                # print(batch)
+                # print(torch.cuda.memory_stats(device=device))
                 real = target[batch:batch + batch_size].to(device)
+                # print(torch.cuda.memory_stats(device=device))
                 fake = generator.simulate_paths(batch_size)
+                # print(torch.cuda.memory_stats(device=device))
                 u = torch.rand(1, device=device)
                 combination = real * u + fake * (1 - u)
                 regularizer = torch.autograd.grad(discriminator(combination).sum(), combination, create_graph=True)[0]
@@ -47,14 +53,14 @@ def train_GAN(generator, discriminator, target, epochs, batch_size, device, n_cr
             axs[0].legend()
             axs[1].plot(losses_D, label='Discriminator loss')
             axs[1].legend()
-            plt.savefig(f'./neuralSDE/WassersteinGAN/Results/{generator.__class__.__name__}.png')
+            plt.savefig(f'./neuralSDE/WassersteinGAN/Results/loss_WassersteinGAN_{generator.__class__.__name__}.png')
             plt.close()
 
         if loss_G.item() < loss_val_best:
             G_best = generator
             loss_val_best = loss_G.item()
             print(f'loss_val_best: {loss_val_best}')
-            filename = f'./neuralSDE/WassersteinGAN/Results/{generator.__class__.__name__}.pth.tar'
+            filename = f'./neuralSDE/WassersteinGAN/Results/WassersteinGAN_{generator.__class__.__name__}.pth.tar'
             checkpoint = {'state_dict': generator.state_dict(), 'loss': loss_val_best}
             torch.save(checkpoint, filename)
 

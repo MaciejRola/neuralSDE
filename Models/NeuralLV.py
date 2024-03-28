@@ -116,7 +116,7 @@ class NeuralLV(nn.Module):
 
         ones = torch.ones(1, batch_size, dtype=torch.float)
         idx = (N_step - 1) // self.period_length
-        t = (N_step - 1) * dt * ones.to(self.device)
+        t = (N_step - 1) * dt.to(self.device) * ones.to(self.device)
         X = torch.cat([t, S_prev], 0).to(self.device)
 
         leverage = self.leverage(idx, X)

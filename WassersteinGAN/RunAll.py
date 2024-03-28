@@ -42,7 +42,7 @@ use_hedging = False
 use_batchnorm = False
 
 # simulation parameters
-batch_size = 10000
+batch_size = 5000
 epochs = 1000
 N_simulations = 20 * batch_size
 N_steps = 96
